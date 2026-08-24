@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fig3_steer
-#SBATCH --partition=gpu-long
-#SBATCH --time=24:00:00
+#SBATCH --partition=gpu
+#SBATCH --time=03:00:00
 #SBATCH --gres=gpu:nv:1
 #SBATCH --constraint=titanrtx
 #SBATCH --exclude=xgpe2,xgpe6
@@ -46,7 +46,7 @@ echo "steer.py exit code: $rc"
 # Requeue (same job id) so submit_all.sh's afterok edge to finalize survives the
 # checkpoint/resume cycle. rc>128 = killed without USR1; the periodic checkpoint
 # still allows resume. SLURM_RESTART_COUNT is maintained by Slurm across requeues.
-if { [ "$rc" -eq 99 ] || [ "$rc" -gt 128 ]; } && [ "${SLURM_RESTART_COUNT:-0}" -lt 5 ]; then
+if { [ "$rc" -eq 99 ] || [ "$rc" -gt 128 ]; } && [ "${SLURM_RESTART_COUNT:-0}" -lt 8 ]; then
     echo "requeueing job $SLURM_JOB_ID (restart ${SLURM_RESTART_COUNT:-0})"
     if ! scontrol requeue "$SLURM_JOB_ID"; then
         echo "WARNING: scontrol requeue failed; falling back to sbatch (this breaks"

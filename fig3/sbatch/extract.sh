@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fig3_extract
-#SBATCH --partition=gpu-long
-#SBATCH --time=08:00:00
+#SBATCH --partition=gpu
+#SBATCH --time=03:00:00
 #SBATCH --gres=gpu:nv:1
 #SBATCH --constraint=titanrtx
 #SBATCH --exclude=xgpe2,xgpe6
