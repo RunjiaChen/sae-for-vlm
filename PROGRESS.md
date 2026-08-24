@@ -128,7 +128,25 @@ HF cache: `HF_HOME=/mnt/scratch/r/runjia/fig3-workspace/hf_home`.
 
 ## Job log
 
-(job IDs, nodes, log paths appended here as they are submitted)
+Logs all in /mnt/scratch/r/runjia/fig3-workspace/logs/ as <name>_<jobid>.out.
+
+| Job | ID | Partition | Purpose | Depends on |
+|---|---|---|---|---|
+| net_test | 753696 | normal | compute-node internet check (OK) | - |
+| fig3_setup | 753702 | normal | venv+downloads (died: stale file handle after venv) | - |
+| fig3_setup | 753803 | normal | reran downloads -> SETUP_DONE, all sizes verified | - |
+| fig3_imports | 753871 | normal | venv import + SAE load check (IMPORTS_OK) | - |
+| fig3_smoke | 753872 | gpu | verify_equivalence gate (ran on xgpe6) | - |
+| fig3_extract | 753873 | gpu-long | Q+A extraction pass (ran on xgpe2) | - |
+| fig3_dissect | 753874 | gpu | soft-WPMI interp scores | afterok:753873 |
+| fig3_steer (unit) | 753875 | gpu-long | 65k steering, pre_zero=True | afterok:753872 |
+| fig3_steer (white) | 753876 | gpu-long | 65k steering, pre_zero=False | afterok:753872 |
+| fig3_finalize | 753877 | gpu | SBERT scores + Figure 3 plots | afterok:753874,753875,753876 |
+
+If a steer job hits walltime it requeues itself (same job id, log appended), so the
+finalize afterok chain stays intact. If smoke FAILS, 753875/753876 go
+DependencyNeverSatisfied: scancel them, fix, resubmit via submit_all.sh (idempotent:
+extract/dissect skip on their done-flags).
 
 ## Open questions / gotchas
 
