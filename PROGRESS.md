@@ -11,6 +11,17 @@ Big files live in `/mnt/scratch/r/runjia/fig3-workspace/` (58 TB free), NOT in t
 
 ## Status (newest first)
 
+- 2026-08-24 (late): SMOKE GATE PASSED (753905, 54 s on xgpe1): rank-1 reconstruction ==
+  explicit decode, all 22 reference-vs-batched strings identical, batched(11) vs bs=1
+  0 mismatches, both variants. Steering visibly works (neuron-specific one-word outputs).
+- 2026-08-24 (late): Second partition trap found: gpu-long's titanrtx pool is ONLY
+  xgpe2/3/4/6 — the two dead nodes plus two occupied ones; healthy free xgpe1 (and
+  xgpe0) are gpu-partition-only. Moved extract+steer to the 3 h `gpu` partition;
+  steer chains 3 h windows via USR1-checkpoint + scontrol requeue (cap 8 windows);
+  smoke timing suggests each steer variant may finish inside ONE window anyway.
+  Resubmitted (no smoke dep — gate already passed): extract=753913, dissect=753914,
+  steer_unit=753915, steer_white=753916, finalize=753917. Extract RUNNING on xgpe1.
+
 - 2026-08-24 (evening): First pipeline submission (753872-753877) died at CUDA init on
   BOTH GPU jobs. Root cause: **xgpe2 and xgpe6 have dead GPUs** — sinfo reports them
   idle, but `nvidia-smi` on-node says "No devices were found". The scheduler prefers
