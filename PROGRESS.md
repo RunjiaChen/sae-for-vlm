@@ -11,6 +11,16 @@ Big files live in `/mnt/scratch/r/runjia/fig3-workspace/` (58 TB free), NOT in t
 
 ## Status (newest first)
 
+- 2026-08-24 (evening): First pipeline submission (753872-753877) died at CUDA init on
+  BOTH GPU jobs. Root cause: **xgpe2 and xgpe6 have dead GPUs** — sinfo reports them
+  idle, but `nvidia-smi` on-node says "No devices were found". The scheduler prefers
+  idle nodes, so both jobs landed exactly on the two broken ones. Only 6 titanrtx nodes
+  exist (xgpe0-4,6); xgpe1 verified healthy (driver 580.173.02, torch fp16 matmul OK),
+  xgpe0/3/4 busy with other users. Fix: `#SBATCH --exclude=xgpe2,xgpe6` on every GPU
+  job. Worth reporting xgpe2/xgpe6 to cluster admins. a100-40 pool meanwhile filled up
+  (was 3 idle nodes an hour earlier) — staying on titanrtx per task spec; jobs simply
+  serialize through the working nodes. Resubmitted as 753905-753910.
+
 - 2026-08-24: Setup job 753702 died at the download step with "Stale file handle" —
   I rsynced the review-fixed setup_env.sh over the script WHILE the job's bash was
   executing it from NFS. Lesson: never edit a script a running job is executing.
@@ -136,12 +146,16 @@ Logs all in /mnt/scratch/r/runjia/fig3-workspace/logs/ as <name>_<jobid>.out.
 | fig3_setup | 753702 | normal | venv+downloads (died: stale file handle after venv) | - |
 | fig3_setup | 753803 | normal | reran downloads -> SETUP_DONE, all sizes verified | - |
 | fig3_imports | 753871 | normal | venv import + SAE load check (IMPORTS_OK) | - |
-| fig3_smoke | 753872 | gpu | verify_equivalence gate (ran on xgpe6) | - |
-| fig3_extract | 753873 | gpu-long | Q+A extraction pass (ran on xgpe2) | - |
-| fig3_dissect | 753874 | gpu | soft-WPMI interp scores | afterok:753873 |
-| fig3_steer (unit) | 753875 | gpu-long | 65k steering, pre_zero=True | afterok:753872 |
-| fig3_steer (white) | 753876 | gpu-long | 65k steering, pre_zero=False | afterok:753872 |
-| fig3_finalize | 753877 | gpu | SBERT scores + Figure 3 plots | afterok:753874,753875,753876 |
+| fig3_smoke | 753872 | gpu | FAILED: landed on dead-GPU node xgpe6 | - |
+| fig3_extract | 753873 | gpu-long | FAILED: landed on dead-GPU node xgpe2 | - |
+| 753874-753877 | - | - | scancelled (DependencyNeverSatisfied after the above) | - |
+| fig3_gpudiag | 753898/753903 | gpu | node probes: xgpe6 dead, xgpe1 healthy | - |
+| fig3_smoke | 753905 | gpu | verify_equivalence gate (xgpe1) | - |
+| fig3_extract | 753906 | gpu-long | Q+A extraction pass | - |
+| fig3_dissect | 753907 | gpu | soft-WPMI interp scores | afterok:753906 |
+| fig3_steer (unit) | 753908 | gpu-long | 65k steering, pre_zero=True | afterok:753905 |
+| fig3_steer (white) | 753909 | gpu-long | 65k steering, pre_zero=False | afterok:753905 |
+| fig3_finalize | 753910 | gpu | SBERT scores + Figure 3 plots | afterok:753907,753908,753909 |
 
 If a steer job hits walltime it requeues itself (same job id, log appended), so the
 finalize afterok chain stays intact. If smoke FAILS, 753875/753876 go
