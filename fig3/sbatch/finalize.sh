@@ -8,7 +8,7 @@
 #SBATCH --mem=32G
 #SBATCH --output=/mnt/scratch/r/runjia/fig3-workspace/logs/%x_%j.out
 
-set -uo pipefail
+set -euo pipefail
 WS=/mnt/scratch/r/runjia/fig3-workspace
 source "$WS/venv/bin/activate"
 export HF_HOME=$WS/hf_home HF_HUB_OFFLINE=1

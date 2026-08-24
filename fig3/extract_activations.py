@@ -10,6 +10,7 @@ copy, and lets the forward pass continue untouched.
 """
 
 import argparse
+import glob
 import os
 import sys
 
@@ -70,34 +71,49 @@ def main():
     model.vision_model.encoder.layers[args.layer].register_forward_hook(hook)
 
     ds = ProbingDataset(args.img_dir, manifest)
+    n = len(ds)
 
     def collate(batch):
         return processor(images=batch, return_tensors='pt')
 
-    dl = DataLoader(ds, batch_size=args.batch_size, shuffle=False,
-                    num_workers=args.num_workers, collate_fn=collate)
-
-    n = len(ds)
-    q_all = torch.empty(n, dict_size, dtype=torch.float16)
-    a_all = torch.empty(n, model.config.projection_dim, dtype=torch.float32)
-
-    row = 0
-    with torch.no_grad():
-        for batch in tqdm.tqdm(dl, desc='extract'):
-            out = model(pixel_values=batch['pixel_values'].to(args.device))
-            bsz = out.image_embeds.shape[0]
-            a_all[row:row + bsz] = out.image_embeds.float().cpu()
-            z = sae.encode(captured['h'].float())          # (B, 577, dict_size)
-            q_all[row:row + bsz] = z.mean(dim=1).half().cpu()
-            row += bsz
-    assert row == n
-
-    torch.save(a_all, os.path.join(args.out_dir, 'clip_image_embeds.pt'))
-    nonzero = (q_all != 0).any(dim=0).sum().item()
-    print(f'Neurons firing at least once on probing set: {nonzero}/{dict_size}')
+    # Process in chunks of chunk_rows; each chunk is saved atomically as
+    # sae_q_rows*.pt + a_rows*.pt so an interrupted job resumes at chunk level.
+    nonzero_any = torch.zeros(dict_size, dtype=torch.bool)
     for start in range(0, n, args.chunk_rows):
-        chunk = q_all[start:start + args.chunk_rows].clone()
-        torch.save(chunk, os.path.join(args.out_dir, f'sae_q_rows{start:06d}.pt'))
+        end = min(start + args.chunk_rows, n)
+        q_path = os.path.join(args.out_dir, f'sae_q_rows{start:06d}.pt')
+        a_path = os.path.join(args.out_dir, f'a_rows{start:06d}.pt')
+        if os.path.exists(q_path) and os.path.exists(a_path):
+            nonzero_any |= (torch.load(q_path, map_location='cpu') != 0).any(dim=0)
+            print(f'chunk {start}-{end}: already done, skipping')
+            continue
+        subset = torch.utils.data.Subset(ds, list(range(start, end)))
+        dl = DataLoader(subset, batch_size=args.batch_size, shuffle=False,
+                        num_workers=args.num_workers, collate_fn=collate)
+        q_chunk = torch.empty(end - start, dict_size, dtype=torch.float16)
+        a_chunk = torch.empty(end - start, model.config.projection_dim,
+                              dtype=torch.float32)
+        row = 0
+        with torch.no_grad():
+            for batch in tqdm.tqdm(dl, desc=f'extract {start}-{end}'):
+                out = model(pixel_values=batch['pixel_values'].to(args.device))
+                bsz = out.image_embeds.shape[0]
+                a_chunk[row:row + bsz] = out.image_embeds.float().cpu()
+                z = sae.encode(captured['h'].float())      # (B, 577, dict_size)
+                q_chunk[row:row + bsz] = z.mean(dim=1).half().cpu()
+                row += bsz
+        assert row == end - start
+        for path, tensor in [(q_path, q_chunk), (a_path, a_chunk)]:
+            torch.save(tensor, path + '.tmp')
+            os.replace(path + '.tmp', path)
+        nonzero_any |= (q_chunk != 0).any(dim=0)
+
+    a_files = sorted(glob.glob(os.path.join(args.out_dir, 'a_rows*.pt')))
+    a_all = torch.cat([torch.load(f, map_location='cpu') for f in a_files], dim=0)
+    assert a_all.shape[0] == n
+    torch.save(a_all, os.path.join(args.out_dir, 'clip_image_embeds.pt'))
+    nonzero = nonzero_any.sum().item()
+    print(f'Neurons firing at least once on probing set: {nonzero}/{dict_size}')
     with open(done_flag, 'w') as f:
         f.write(f'rows={n} nonzero_neurons={nonzero}')
     print('DONE')

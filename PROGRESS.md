@@ -11,7 +11,23 @@ Big files live in `/mnt/scratch/r/runjia/fig3-workspace/` (58 TB free), NOT in t
 
 ## Status (newest first)
 
-- 2026-08-24: Recon done. Branch created. Environment/data setup starting.
+- 2026-08-24: Adversarial code review (13-agent workflow) found and fixed before first run:
+  (1) CRITICAL: LlavaProcessor in transformers 4.46.3 crashes on images-only calls ->
+  use processor.image_processor directly in steer.py precompute();
+  (2) CRITICAL: `from dictionary_learning.trainers import ...` pulls in buffer.py ->
+  nnsight (not installed); guarded the buffer import in dictionary_learning/__init__.py;
+  (3) MAJOR: steer.sh's sbatch-self-resubmit on walltime broke finalize's afterok chain ->
+  switched to `scontrol requeue` (same job id) + SLURM_RESTART_COUNT guard + open-mode=append;
+  (4) MAJOR: partial-download guards ([ ! -s ]) accepted truncated wds shards -> .part+mv +
+  exact size verification; (5) MAJOR: non-atomic image extraction could poison a requeued
+  job -> atomic writes + wipe-on-missing-done-flag + restart-count-keyed tmp dir;
+  plus: chunk-level resume in extract_activations.py, interrupted/OOM handling order in
+  steer.py, --limit output suffixing, empty-word steer score floor 0.0, finalize set -e,
+  batched-vs-bs1 check in the smoke gate, mkdir -p logs in submit_all.sh.
+- 2026-08-24: Recon done. Branch created. Setup job 753702 (normal partition) installs venv
+  + downloads. Compute nodes DO have internet (verified, job 753696).
+- wds shard layout verified by HTTP range request: members are sNNNNNNN.cls/.jpg pairs
+  in key order; 7 shards, 6.8 GB total.
 
 ## Key design decisions & assumptions (read before resuming)
 

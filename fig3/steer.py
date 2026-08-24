@@ -92,7 +92,9 @@ def precompute(model, processor, sae, args):
     assert model.config.vision_feature_select_strategy == 'default'
 
     image = Image.open(args.white_image)
-    pixel_values = processor(images=[image], return_tensors='pt')['pixel_values']
+    # LlavaProcessor in transformers 4.46.3 crashes on images-only calls; go straight
+    # to the underlying CLIPImageProcessor (identical pixel_values).
+    pixel_values = processor.image_processor(images=[image], return_tensors='pt')['pixel_values']
     pixel_values = pixel_values.to(args.device, torch.float16)
     with torch.no_grad():
         vt_out = model.vision_tower(pixel_values, output_hidden_states=True)
@@ -133,8 +135,10 @@ def main():
     args = parse_args()
     signal.signal(signal.SIGUSR1, on_usr1)
     os.makedirs(args.out_dir, exist_ok=True)
-    ckpt_path = os.path.join(args.out_dir, f'steer_ckpt_{args.variant}.pt')
-    final_path = os.path.join(args.out_dir, f'steer_outputs_{args.variant}.json')
+    # debug runs with --limit must never masquerade as the real 65k output
+    suffix = f'_limit{args.limit}' if args.limit else ''
+    ckpt_path = os.path.join(args.out_dir, f'steer_ckpt_{args.variant}{suffix}.pt')
+    final_path = os.path.join(args.out_dir, f'steer_outputs_{args.variant}{suffix}.json')
     if os.path.exists(final_path):
         print('Final output already exists, exiting.')
         return
@@ -166,7 +170,12 @@ def main():
     batch_size = args.batch_size
     pbar = tqdm.tqdm(total=total, initial=len(words), desc=f'steer-{args.variant}')
 
+    oom_at_min_batch = 0
     while len(words) < total:
+        if interrupted:
+            save_checkpoint(ckpt_path, words, raw, len(words), args)
+            print(f'SIGUSR1: checkpointed at neuron {len(words)}, exiting 99')
+            sys.exit(99)
         start = len(words)
         neurons = torch.arange(start, min(start + batch_size, total), device=args.device)
         try:
@@ -187,9 +196,16 @@ def main():
                     pad_token_id=pad_id)
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
+            if batch_size == 1:
+                oom_at_min_batch += 1
+                if oom_at_min_batch >= 3:
+                    save_checkpoint(ckpt_path, words, raw, len(words), args)
+                    print(f'repeated OOM at batch_size=1, neuron {len(words)}; giving up')
+                    sys.exit(1)
             batch_size = max(1, batch_size // 2)
             print(f'OOM -> batch_size={batch_size}')
             continue
+        oom_at_min_batch = 0
         decoded = tokenizer.batch_decode(out, skip_special_tokens=True)
         for s in decoded:
             s = s.strip()
@@ -197,7 +213,7 @@ def main():
             words.append(s.split(' ')[0] if s else '')
         pbar.update(len(decoded))
 
-        if len(words) % args.checkpoint_every < batch_size or interrupted:
+        if interrupted or len(words) % args.checkpoint_every < batch_size:
             save_checkpoint(ckpt_path, words, raw, len(words), args)
         if interrupted:
             print(f'SIGUSR1: checkpointed at neuron {len(words)}, exiting 99')

@@ -69,7 +69,8 @@ def main():
                 failures += 1
         print(f'[ok] {variant}: rank-1 reconstruction matches explicit decode')
 
-        # --- check 2: end-to-end strings vs Pach's reference path ---
+        # --- check 2: end-to-end strings vs Pach's reference path (batch 1) ---
+        ref_words = {}
         for j in args.neurons:
             llava.attach_and_fix(sae=sae, neurons_to_fix={j: args.alpha}, pre_zero=pre_zero)
             ref_out = llava.prompt(PROMPT, image, max_tokens=5)[0].strip()
@@ -92,11 +93,41 @@ def main():
             status = 'ok' if my_word == ref_word else 'FAIL'
             if status == 'FAIL':
                 failures += 1
+            ref_words[j] = ref_word
             print(f'[{status}] {variant} neuron {j}: ref="{ref_out}" mine="{mine}"')
 
         # restore the unmodified layer for the next variant
         llava.model.vision_tower.vision_model.encoder.layers[llava.layer] = \
             llava.base_CLIPEncoderLayerPostMlpResidual
+
+        # --- check 3: the PRODUCTION batched configuration (all sample neurons in
+        # one generate call). fp16 batching can flip borderline greedy tokens; a few
+        # flips are tolerated, many mean something is wrong. ---
+        with torch.no_grad():
+            neurons_t = torch.tensor(args.neurons, device=args.device)
+            feats = steered_features(neurons_t, z_white, base_recon, sae, args)
+            img_emb = model.multi_modal_projector(feats)
+            bsz = img_emb.shape[0]
+            inputs_embeds = torch.cat([prefix_emb.expand(bsz, -1, -1), img_emb,
+                                       suffix_emb.expand(bsz, -1, -1)], dim=1)
+            attn = torch.ones(inputs_embeds.shape[:2], dtype=torch.long,
+                              device=args.device)
+            out = model.language_model.generate(
+                inputs_embeds=inputs_embeds, attention_mask=attn,
+                max_new_tokens=5, do_sample=False,
+                pad_token_id=processor.tokenizer.pad_token_id
+                or processor.tokenizer.eos_token_id)
+        decoded = processor.tokenizer.batch_decode(out, skip_special_tokens=True)
+        mismatches = 0
+        for j, s in zip(args.neurons, decoded):
+            w = s.strip().split(' ')[0] if s.strip() else ''
+            if w != ref_words[j]:
+                mismatches += 1
+                print(f'[warn] {variant} neuron {j}: batched="{w}" bs1="{ref_words[j]}"')
+        print(f'[{"ok" if mismatches <= len(args.neurons) // 5 else "FAIL"}] {variant}: '
+              f'batched vs bs=1 mismatches {mismatches}/{len(args.neurons)}')
+        if mismatches > len(args.neurons) // 5:
+            failures += 1
 
     if failures:
         print(f'{failures} FAILURES')

@@ -49,7 +49,11 @@ def main():
     c_emb = emb[torch.tensor([idx[c] for c in concepts])]
     scores = (w_emb * c_emb).sum(dim=1).cpu()
 
-    empty = sum(1 for w in words if w == '')
+    # SBERT's embedding of '' has arbitrary cosine to concepts; empty outputs
+    # (nothing generated / punctuation-only) get a defined floor of 0 instead
+    empty_mask = torch.tensor([w == '' for w in words])
+    scores[empty_mask] = 0.0
+    empty = int(empty_mask.sum())
     print(f'{len(words)} neurons, {len(set(words))} unique output words, '
           f'{empty} empty outputs')
     print(f'steerability ({steer["variant"]}): mean={scores.mean():.4f} '

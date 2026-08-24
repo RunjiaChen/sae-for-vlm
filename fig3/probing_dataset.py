@@ -11,6 +11,7 @@ workspace records the canonical order so extraction is reproducible.
 
 import json
 import os
+import shutil
 import tarfile
 
 from PIL import Image
@@ -46,11 +47,17 @@ def build_manifest(wds_dir, manifest_path):
 
 
 def extract_images(wds_dir, manifest, out_dir):
-    """Extract to out_dir/{i:06d}{ext} following manifest order. Skips existing files."""
-    os.makedirs(out_dir, exist_ok=True)
+    """Extract to out_dir/{i:06d}{ext} following manifest order.
+
+    A dir without the done-flag may hold truncated files from a killed attempt
+    (a requeued job can land on the same node and reuse the path), so it is wiped
+    and rebuilt; extraction only takes minutes.
+    """
     done_flag = os.path.join(out_dir, '.extract_done')
     if os.path.exists(done_flag):
         return
+    shutil.rmtree(out_dir, ignore_errors=True)
+    os.makedirs(out_dir)
     by_shard = {}
     for i, (shard, member) in enumerate(manifest):
         by_shard.setdefault(shard, []).append((i, member))
@@ -62,9 +69,9 @@ def extract_images(wds_dir, manifest, out_dir):
                     i = wanted[m.name]
                     ext = os.path.splitext(m.name)[1].lower()
                     dst = os.path.join(out_dir, f'{i:06d}{ext}')
-                    if not os.path.exists(dst):
-                        with tf.extractfile(m) as src, open(dst, 'wb') as out:
-                            out.write(src.read())
+                    with tf.extractfile(m) as src, open(dst + '.tmp', 'wb') as out:
+                        out.write(src.read())
+                    os.replace(dst + '.tmp', dst)
     with open(done_flag, 'w') as f:
         f.write('ok')
 

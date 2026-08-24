@@ -1,2 +1,5 @@
 from .dictionary import AutoEncoder, GatedAutoEncoder, JumpReluAutoEncoder
-from .buffer import ActivationBuffer
+try:
+    from .buffer import ActivationBuffer
+except ImportError:  # nnsight is only needed for training-time activation buffering
+    ActivationBuffer = None

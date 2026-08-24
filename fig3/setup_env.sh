@@ -5,6 +5,7 @@ set -euo pipefail
 
 WS=/mnt/scratch/r/runjia/fig3-workspace
 export HF_HOME=$WS/hf_home
+mkdir -p "$WS/logs" "$WS/results" "$WS/data" "$WS/checkpoints"
 
 # ---- 1. venv (system python 3.12.3; Pach pins torch 2.1.2 which has no cp312
 #         wheels, so torch 2.5.1 is used; transformers stays at Pach's 4.46.3) ----
@@ -34,19 +35,31 @@ huggingface-cli download openai/clip-vit-large-patch14-336
 huggingface-cli download sentence-transformers/all-mpnet-base-v2
 
 # ---- 4. ImageNet-1K val (50k) as webdataset shards (ungated mirror) ----
+# Download to .part and mv into place so an interrupted run never leaves a
+# truncated shard that a rerun would accept; then verify against known sizes.
 mkdir -p "$WS/data/imagenet_val_wds"
+EXPECTED_SIZES=(1012039680 1013073920 1013514240 1014097920 1014087680 1013964800 715386880)
 for i in 0 1 2 3 4 5 6; do
     f="$WS/data/imagenet_val_wds/$i.tar"
+    if [ -s "$f" ] && [ "$(stat -c%s "$f")" != "${EXPECTED_SIZES[$i]}" ]; then
+        echo "shard $i has wrong size $(stat -c%s "$f"), re-downloading"
+        rm -f "$f"
+    fi
     if [ ! -s "$f" ]; then
-        wget -c -q -O "$f" "https://huggingface.co/datasets/clip-benchmark/wds_imagenet1k/resolve/main/test/$i.tar"
+        wget -c -q -O "$f.part" "https://huggingface.co/datasets/clip-benchmark/wds_imagenet1k/resolve/main/test/$i.tar"
+        mv "$f.part" "$f"
         echo "downloaded shard $i"
+    fi
+    if [ "$(stat -c%s "$f")" != "${EXPECTED_SIZES[$i]}" ]; then
+        echo "ERROR: shard $i size mismatch after download"; exit 1
     fi
 done
 
 # ---- 5. Broden concept list from CLIP-dissect ----
 if [ ! -s "$WS/data/broden_labels_clean.txt" ]; then
-    wget -q -O "$WS/data/broden_labels_clean.txt" \
+    wget -q -O "$WS/data/broden_labels_clean.txt.part" \
         "https://raw.githubusercontent.com/Trustworthy-ML-Lab/CLIP-dissect/master/data/broden_labels_clean.txt"
+    mv "$WS/data/broden_labels_clean.txt.part" "$WS/data/broden_labels_clean.txt"
 fi
 
 echo "SETUP_DONE"

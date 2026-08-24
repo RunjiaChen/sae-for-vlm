@@ -7,6 +7,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+WS=/mnt/scratch/r/runjia/fig3-workspace
+mkdir -p "$WS/logs" "$WS/results"   # Slurm won't create --output dirs itself
+
 SMOKE=$(sbatch --parsable smoke.sh)
 EXTRACT=$(sbatch --parsable extract.sh)
 DISSECT=$(sbatch --parsable --dependency=afterok:$EXTRACT dissect.sh)
