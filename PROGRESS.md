@@ -11,6 +11,13 @@ Big files live in `/mnt/scratch/r/runjia/fig3-workspace/` (58 TB free), NOT in t
 
 ## Status (newest first)
 
+- 2026-08-24: Setup job 753702 died at the download step with "Stale file handle" —
+  I rsynced the review-fixed setup_env.sh over the script WHILE the job's bash was
+  executing it from NFS. Lesson: never edit a script a running job is executing.
+  venv was fully installed before the abort (torch 2.5.1+cu124, transformers 4.46.3,
+  tokenizers 0.20.3, sentence-transformers 3.2.1, numpy 1.26.4 — all pins correct).
+  Resubmitted as job 753803 (idempotent script: pip no-ops, then downloads).
+
 - 2026-08-24: Adversarial code review (13-agent workflow) found and fixed before first run:
   (1) CRITICAL: LlavaProcessor in transformers 4.46.3 crashes on images-only calls ->
   use processor.image_processor directly in steer.py precompute();
