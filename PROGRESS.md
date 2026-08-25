@@ -211,3 +211,23 @@ extract/dissect skip on their done-flags).
 - steer_white 756258 RUNNING on xgpe1 (~2.9 h + one requeue tail expected).
 - White image activates 427/65536 latents (mean-pooled nonzero) - fyi for the
   pre_zero=False variant semantics.
+
+## Update 2026-08-25 morning: interpretability definition RESOLVED empirically
+
+quadrant_report (job 756278; first attempt 756277 died on a leftover debug line,
+fixed) compared both interp definitions on the completed unit variant:
+
+- **soft-WPMI x unit: quadrants 36.20 / 22.60 / 21.53 / 19.68 % vs paper
+  36.26 / 25.03 / 19.87 / 18.84 % - total |dev| 5.0 pp. REPLICATES.**
+  steer mean 0.2255 (paper Fig3 threshold 0.232). interp mean 2.7138.
+- cos-sim x unit: total |dev| 15.8 pp, worse on every quadrant. Rejected.
+- Port fidelity confirmed by dcheck 756267: verbatim CLIP-dissect loop gives mean
+  2.7128 vs our 2.7138 (argmax diffs are fp16 topk tie-breaking on weak neurons).
+- Reading: mean-split quadrants are invariant to affine axis rescaling, so the
+  papers 0.154 is a rescaled/differently-normalized readout of the same ranking
+  (their exact normalization is not recoverable from the paper; CB-SAE code
+  unreleased). The distribution shape + quadrant split replicate; the raw scale
+  does not, and cannot decide the figure. Fig 3 is produced on the raw soft-WPMI
+  axis with our own mean line.
+- cos-sim scores kept for reference in results/dissect_check.pt and
+  steer_scores_unit_cossim.pt; summary in results/quadrant_report.json.
