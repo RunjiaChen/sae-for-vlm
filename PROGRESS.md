@@ -181,3 +181,16 @@ extract/dissect skip on their done-flags).
   the scatter (CB-SAE plotted all 65,536 points).
 - LLaVA one-word replies may carry trailing punctuation ("Dog."); raw strings are saved,
   punctuation/whitespace stripped only inside sbert_score.py.
+
+## Update 2026-08-24/25 night (appended)
+
+- extract 753913 COMPLETED on xgpe1 in 47:31. Q chunks (5x 1.31 GB fp16) + A
+  (clip_image_embeds.pt, 50000x768) all in results/activations/.
+  **65,534/65,536 neurons fire at least once on the probing set (only 2 dead).**
+- dissect 753914 + steers 753915/753916 all FAILED on xgpe0 with "No CUDA GPUs are
+  available": xgpe0 is a THIRD bad titanrtx node (nvidia-smi enumerates the card,
+  torch cannot init it). Added to excludes (now xgpe0,xgpe2,xgpe6) @ 45f6cdc.
+  Worth reporting xgpe0/xgpe2/xgpe6 to cluster admins.
+- Bastion password window expired mid-run (user re-ran ssh -fN stujump).
+- Resubmitted: dissect=756256 (RUNNING xgpe1), steer_unit=756257,
+  steer_white=756258, finalize=756259 (afterok:756256:756257:756258).
