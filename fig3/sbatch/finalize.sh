@@ -4,7 +4,7 @@
 #SBATCH --time=01:30:00
 #SBATCH --gres=gpu:nv:1
 #SBATCH --constraint=titanrtx
-#SBATCH --exclude=xgpe2,xgpe6
+#SBATCH --exclude=xgpe0,xgpe2,xgpe6
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --output=/mnt/scratch/r/runjia/fig3-workspace/logs/%x_%j.out

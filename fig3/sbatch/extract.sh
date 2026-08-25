@@ -4,7 +4,7 @@
 #SBATCH --time=03:00:00
 #SBATCH --gres=gpu:nv:1
 #SBATCH --constraint=titanrtx
-#SBATCH --exclude=xgpe2,xgpe6
+#SBATCH --exclude=xgpe0,xgpe2,xgpe6
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --requeue
