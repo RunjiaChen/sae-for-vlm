@@ -194,3 +194,20 @@ extract/dissect skip on their done-flags).
 - Bastion password window expired mid-run (user re-ran ssh -fN stujump).
 - Resubmitted: dissect=756256 (RUNNING xgpe1), steer_unit=756257,
   steer_white=756258, finalize=756259 (afterok:756256:756257:756258).
+
+## Update 2026-08-25 early morning (appended)
+
+- dissect 756256 COMPLETED (2 min, xgpe1): interp_scores.pt written.
+  **OPEN QUESTION: raw soft-WPMI max mean = 2.7138, paper says ~0.154.** Port is
+  line-faithful to CLIP-dissect similarity.py; their released CSVs also show
+  similarity 0.1-0.3 though. Investigation job fig3_dcheck (756267, CPU node):
+  runs VERBATIM reference soft_wpmi + reference cos_similarity on our exact P/Q.
+  Hypotheses: (a) port bug (check 1 decides), (b) CB-SAE actually reports a
+  cosine-scale value, (c) population-size dependence of the p(d) term.
+- **steer_unit 756257 COMPLETE (all 65,536 neurons)**: ran one full 3h window to
+  neuron 65,248 at ~6.2 neurons/s, USR1 checkpoint + scontrol requeue (same job
+  id), second incarnation finished the last 288 in 56 s, exit 0. The
+  walltime-requeue design works end to end. steer_outputs_unit.json on disk.
+- steer_white 756258 RUNNING on xgpe1 (~2.9 h + one requeue tail expected).
+- White image activates 427/65536 latents (mean-pooled nonzero) - fyi for the
+  pre_zero=False variant semantics.
