@@ -231,3 +231,31 @@ fixed) compared both interp definitions on the completed unit variant:
   axis with our own mean line.
 - cos-sim scores kept for reference in results/dissect_check.pt and
   steer_scores_unit_cossim.pt; summary in results/quadrant_report.json.
+
+## FINAL — 2026-08-25: replication complete
+
+All jobs COMPLETED, queue empty. Final chain: extract 753913 (47 min) -> dissect
+756256 (2 min) -> steer_unit 756257 (3h window + 56s requeue tail) -> steer_white
+756258 (3h + 6min requeue tail) -> finalize 756259 (53s); combined quadrant report
+756802. All GPU work on xgpe1 (titanrtx).
+
+Final quadrant tables (split at each axis mean), paper = 36.26/25.03/19.87/18.84:
+- soft-WPMI x unit : 36.20 / 22.60 / 21.53 / 19.68  (total |dev| 5.00 pp)
+- soft-WPMI x white: 36.89 / 21.90 / 21.43 / 19.78  (total |dev| 6.26 pp)
+- cos-sim variants rejected (15.84 pp both).
+Steerability means: 0.2255 unit / 0.2347 white (paper Fig3 threshold 0.232 ->
+white variant almost certainly the one in the paper figure; Table-1 ambiguity
+recorded earlier). Interpretability: soft-WPMI ranking replicates; raw scale is
+mean 2.7138, not the papers 0.154 — port verified faithful against the verbatim
+CLIP-Dissect loop (2.7128), and mean-split quadrants are affine-invariant, so the
+papers 0.154 is an unrecoverable renormalization of the same ranking.
+
+Deliverables in /mnt/scratch/r/runjia/fig3-workspace/results/:
+figure3_unit.{png,pdf}, figure3_white.{png,pdf}, fig3_summary.json,
+quadrant_report.json, interp_scores.pt, steer_outputs_{unit,white}.json,
+steer_scores_*, dissect_check.pt, activations/ (Q chunks + clip_image_embeds.pt).
+
+Operational notes for the future: xgpe0, xgpe2, xgpe6 have broken GPUs while
+appearing schedulable (report to admins); gpu-long has NO working free titanrtx —
+use 3h gpu-partition windows + USR1 checkpoint + scontrol requeue (same job id,
+preserves afterok chains); never edit a script an sbatch job is executing.
